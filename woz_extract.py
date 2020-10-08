@@ -18,19 +18,9 @@
    This file also provides topic level tags for every dialogue.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import google_type_annotations
-from __future__ import print_function
-
-from absl import app
-from absl import flags
 from copy import deepcopy
 
-FLAGS = flags.FLAGS
-
 import math
-import google3
 import os
 from os import path
 import numpy as np
@@ -40,22 +30,16 @@ import nltk
 from nltk.tokenize import word_tokenize
 import re
 from nltk.util import ngrams
-import tensorflow as tf
+import argparse
 
-from google3.pyglib import resources
-nltk.data.path.append(
-    path.join(resources.GetARootDirWithAllResources(),
-              'google3/third_party/py/nltk/nltk_data'))
+parser = argparse.ArgumentParser()
 
+parser.add_argument("--domain",type=str, default="MUL")
+parser.add_argument("--type",type=str, default="train")
 
-flags = tf.flags
-FLAGS = flags.FLAGS
-
-flags.DEFINE_string("domain", "MUL", "Whether multidomain dialogues or single domain dialogues.")
-flags.DEFINE_string("type", "train","the split of the data that needs to be analysed")
-
-fp = tf.gfile.Open(
-    '/cns/iz-d/home/brain-dialog/ppartha/ppartha/Analysis/Multiwoz/data.json')
+args = parser.parse_args()
+fp = open(
+    '/Users/prasanna/Documents/Meta-Learning-for-Dialogue/Dataset/MULTIWOZ2/data.json')
 raw_data = json.load(fp)
 e_in = 0
 vin = 3
@@ -407,31 +391,33 @@ def dial_combinations(dial_stats):
     else:
       comb_stats[len(v)] = 1
 
-  #print('Combination:',comb_stats)
-  #print('Exact Combinations : ', comb_numbers)
   return dial_comb, comb_numbers, comb_stats
 
 
-def main(argv):
+def main(FLAGS):
   print(FLAGS.domain + ' domain dialogues on MultiWoZ dataset')
-  if len(argv) > 1:
-    raise app.UsageError('Too many command-line arguments.')
   Files = list(raw_data.keys())
   Dataset = {}
   max_mess_len = 0
   max_graph_size = 0
   max_utt_len = 0
-  f_ = tf.gfile.Open(
-      '/cns/iz-d/home/brain-dialog/ppartha/ppartha/MultiWoZ/MWoZ2/trainListFile'
+  f_ = open(
+      '/Users/prasanna/Documents/Meta-Learning-for-Dialogue/Dataset/MULTIWOZ2/testListFile.json'
   )
-  f_train = f_.readlines()
-  for i in range(len(f_train)):
-    f_train[i] = f_train[i].strip()
+  f_test = f_.readlines()
+  f_ = open(
+      '/Users/prasanna/Documents/Meta-Learning-for-Dialogue/Dataset/MULTIWOZ2/valListFile.json'
+  )
+  f_valid = f_.readlines()
+  for i in range(len(f_valid)):
+    f_valid[i] = f_valid[i].strip()
+    f_test[i] = f_test[i].strip()
+
   print('Files are being opened and read ...')
   if FLAGS.type == 'train':
-    to_eval = 'f in f_train'
+    to_eval = 'f not in f_valid and f not in f_test'
   else:
-    to_eval = 'f not in f_train'
+    to_eval = 'f in f_valid'
   for f in Files:
     if eval(to_eval) and FLAGS.domain in f:
       i_D, m_, d_len, u_len = extract_info_from_dialogues(f)
@@ -446,7 +432,6 @@ def main(argv):
   print('m_graph_size:', max_graph_size)
   print('m_ut_len:', max_utt_len)
   print('Vocab size:', len(Vocab))
-  print(Dataset[1]['template'])
 
   print('Document preparation for TF-IDF computation ...')
   docs = getdocs(Dataset)
@@ -459,15 +444,6 @@ def main(argv):
   )
   doc_info = get_doc_info(docs)
 
-  print('Computing TF ...')
-  TF = computeTF(doc_info, freq_list_)
-
-  print('Computing IDF ...')
-  IDF = computeIDF(doc_info, freq_list_)
-
-  print('Computing TF-IDF ...')
-  TF_IDF = computeTFIDF(TF,IDF)
-
   print('task Level label counts: ', task_count)
 
   print('Dialogue statistics being computed...')
@@ -478,54 +454,50 @@ def main(argv):
 
   print('Done computing all the stats ... Now saving ..')
 
-  destn_folder = '/cns/iz-d/home/brain-dialog/ppartha/ppartha/Analysis/'
+  destn_folder = './'
   cPickle.dump(
       overlapinfo,
-      tf.gfile.Open(
+      open(
           destn_folder + 'Information_overlap_multitask_' + FLAGS.type + '.pkl', 'wb'))
   print('Saved Overlap Info ..')
 
   cPickle.dump(
       changephrase,
-      tf.gfile.Open(
+      open(
           destn_folder + 'Topic_Change_Phrase_' + FLAGS.type + '_' + FLAGS.domain +
           '.pkl', 'wb'))
   print('Saved Change phrase..')
 
-  cPickle.dump(TF_IDF,
-               tf.gfile.Open(destn_folder + 'TF_IDF_' + FLAGS.domain + '.pkl', 'wb'))
-  print('Saved TF-IDF ..')
-
   cPickle.dump(
       N_grams_freq,
-      tf.gfile.Open(
+      open(
           destn_folder + 'N_grams_' + FLAGS.type + '_' + FLAGS.domain + '.pkl', 'wb'))
   print('Saved N-grams frequency information')
 
   cPickle.dump(
       dial_comb,
-      tf.gfile.Open(
+      open(
           destn_folder + 'Dialogue_combinations_' + FLAGS.type + '_' + FLAGS.domain +
           '.pkl', 'wb'))
   print('Saved Combination counts saved ..')
 
   cPickle.dump(
       task_count,
-      tf.gfile.Open(
+      open(
           destn_folder + 'Utterance_level_classification_' + FLAGS.type + '_' +
           FLAGS.domain + '.pkl', 'wb'))
   print('Utterance level labels saved ...')
 
   cPickle.dump(
       comb_numbers,
-      tf.gfile.Open(
+      open(
           destn_folder + 'Exact_combinations_' + FLAGS.type + '_' + FLAGS.domain +
           '.pkl', 'wb'))
   print('Exact numbers for combinations saved ..')
 
   cPickle.dump(
       comb_stats,
-      tf.gfile.Open(
+      open(
           destn_folder + 'Combinations_stats_' + FLAGS.type + '_' + FLAGS.domain +
           '.pkl', 'wb'))
   print('Combination stats saved ...')
@@ -533,21 +505,21 @@ def main(argv):
   print('Final.. Saving the dataset..')
   cPickle.dump(
       Dataset,
-      tf.gfile.Open(
+      open(
           destn_folder+'Datasets/WoZ/Dataset_'
           + FLAGS.domain + '_WoZ_train.pkl', 'wb'))
   cPickle.dump(
       E_vocab,
-      tf.gfile.Open(
+      open(
           destn_folder+'Datasets/WoZ/Edges_'
           + FLAGS.domain + '_Woz_train.pkl', 'wb'))
   cPickle.dump(
       Vocab,
-      tf.gfile.Open(
+      open(
           destn_folder+'Datasets/WoZ/Vocab_'
           + FLAGS.domain + '_Woz_train.pkl', 'wb'))
   print('Done!')
 
 
 if __name__ == '__main__':
-  app.run(main)
+  main(args)
